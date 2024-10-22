@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: laravel_app
+    volumes:
+      - ./laravel:/var/www/html:cached # Mejoramos rendimiento con :cached en entorno local
+    networks:
+      - laravel
+    environment:
+      PHP_OPCACHE_VALIDATE_TIMESTAMPS: "1" # Opcional para mejorar el rendimiento en dev
+    depends_on:
+      - mysql
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: laravel_nginx
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro # Modo read-only para seguridad
+      - ./laravel:/var/www/html:cached
+    ports:
+      - "8080:80" # Mapeo del puerto local 8080 al puerto 80 del contenedor
+    networks:
+      - laravel
+    depends_on:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    container_name: laravel_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: laravel
+      MYSQL_USER: laravel
+      MYSQL_PASSWORD: secret
+      MYSQL_INITDB_SKIP_TZINFO: "1" # Evitamos la carga innecesaria de zonas horarias
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - laravel
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  laravel:
+    driver: bridge
+
+volumes:
+  db_data:
